@@ -41,6 +41,7 @@ uid=1002(agent-dev) gid=1001(agent-common) groups=1001(agent-common),1002(agent-
 root@ec5fb12f757e:/# id agent-test
 uid=1003(agent-test) gid=1001(agent-common) groups=1001(agent-common)
 ```
+<br>
 
 ### 디렉토리 구조 및 권한(ACL 포함) 확인 내역
 
@@ -79,6 +80,7 @@ drwxr-xr-x  1 agent-admin agent-core   24 May 12 13:10 api_keys
 drwxr-xr-x  1 root        root         20 May 12 13:47 bin
 drwxrwx---+ 1 agent-admin agent-common  0 May 14 15:44 upload_files
 ```
+<br>
 
 - api_keys
 ```bash
@@ -115,6 +117,7 @@ drwxrwx---+ 1 root        agent-core   24 May 12 13:10 api_keys
 drwxr-xr-x  1 root        root         20 May 12 13:47 bin
 drwxrwx---+ 1 agent-admin agent-common  0 May 14 15:44 upload_files
 ```
+<br>
 
 - /var/log/agent-app
 ```bash
@@ -162,11 +165,56 @@ total 552
 -rw-r--r-- 1 agent-admin agent-core 557464 May 14 15:27 agent_app.log
 -rw-r--r-- 1 agent-admin agent-core   2358 May 14 14:43 monitor.log
 ```
-
+<br>
 
 ### 앱 Boost Sequence 5단계 [OK] 및 "Agent READY" 확인 내역
+<p>
+<img width="570" height="535" alt="Screenshot 2026-05-14 at 5 47 24 PM" src="https://github.com/user-attachments/assets/96b925f2-cdc7-4ea3-8341-18bff0e2232b" />
+</p>
+<br>
 
 ### monitor.sh 실행 결과(프로세스/포트/리소스/경고) 내역
+
+터미널 1에서는 
+```bash
+agent-admin@ec5fb12f757e:~$ /usr/local/bin/agent-app &
+```
+
+터미널 2에서는
+```bash
+docker exec -it agent-mission2 bash
+
+agent-admin@ec5fb12f757e:~$ $AGENT_HOME/bin/monitor.sh
+===== SYSTEM MONITOR RESULT =====
+
+[HEALTH CHECK]
+Checking process 'agent-app'...[OK] (PID: 96,97,387,389)
+Checking port 15034...[OK]
+
+[FIREWALL CHECK]
+ERROR: You need to be root to run this script
+UFW Status: active
+
+[RESOURCE MONITORING]
+CPU Usage : 0.0%
+MEM Usage : 4.3%
+DISK Used : 1%
+
+
+===== STATISTICS REPORT =====
+[CPU]
+  Average : 0.0%
+  Maximum : 0.0% at 2026-05-14 18:19:48
+  Minimum : 0.0% at 
+[Memory]
+  Average : 4.9%
+  Maximum : 5.2% at 
+  Minimum : 4.6% at 2026-05-14 18:19:48
+[Samples]
+  Data Points : 82 samples
+
+[INFO] Log appended: /var/log/agent-app/monitor.log
+```
 
 ### /var/log/agent-app/monitor.log 누적 기록 확인(최근 라인) 내역
 
@@ -177,15 +225,23 @@ total 552
 
 ### 도커 컨테이너 재시작 후 테스트 순서 
 #### 1. UFW 활성화 + 포트 허용
+```bash
 ufw enable
 ufw allow 20022/tcp
 ufw allow 15034/tcp
+```
 
 #### 2. SSH 서비스 시작
+```bash
 service ssh start
+```
 
 #### 3. cron 서비스 시작
+```bash
 service cron start
+```
 
 #### 4. 앱 실행 (agent-admin으로)
+```bash
 su - agent-admin -c "/usr/local/bin/agent-app &"
+```
