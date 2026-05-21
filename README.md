@@ -861,6 +861,175 @@ head -1 : 여러 줄의 결과가 나오더라도 맨 위 1줄만 <br>
 <br>
 
 ### 6-2. CPU/MEM/DISK 값을 어떤 방식으로 추출/파싱했는지, 로그 포맷을 왜 이런 형태로 고정했는지?
+#### 6-2-1. CPU 사용률 추출 방식
+```bash
+IDLE=$(top -bn2 -d 0.5 | grep -i "Cpu(s)" | tail -n 1 | awk -F',' '{
+    for(i=1;i<=NF;i++){ if($i ~ /id/){print $i} }
+}' | grep -oP '[0-9.]+')
+CPU=$(echo "100.0 - $IDLE" | bc -l)
+```
+
+##### 1. 
+```bash
+top -bn2 -d 0.5
+```
+- top : 시스템의 현재 상태를 실시간으로 볼 수 있음
+- -b : 배치 모드. 일반 텍스트 형태로 결과가 아래로 쭉 출력됨
+- -n2 -d 0.5 : 0.5초 간격을 두고 2회 반복
+
+실제 출력되는 형태
+```bash
+### [1번째 사이클 출력 (부팅 이후 누적 평균치 - 정확하지 않음)] ###
+top - 13:45:35 up 10 days,  2:30,  1 user,  load average: 0.15, 0.08, 0.02
+Tasks: 120 total,   1 running, 119 sleeping,   0 stopped,   0 zombie
+%Cpu(s):  5.0 us,  2.0 sy,  0.0 ni, 92.5 id,  0.5 wa,  0.0 hi,  0.0 si,  0.0 st
+MiB Mem :   7962.0 total,   1234.5 free,   4567.8 used,   2159.7 buff/cache
+MiB Swap:   2048.0 total,   2048.0 free,      0.0 used.   3000.1 avail Mem
+(이하 프로세스 목록 생략...)
+
+### [2번째 사이클 출력 (0.5초간의 실시간 현재 상태 - 우리가 원하는 것)] ###
+top - 13:45:36 up 10 days,  2:30,  1 user,  load average: 0.15, 0.08, 0.02
+Tasks: 120 total,   1 running, 119 sleeping,   0 stopped,   0 zombie
+%Cpu(s): 12.3 us,  4.1 sy,  0.0 ni, 83.2 id,  0.0 wa,  0.4 hi,  0.0 si,  0.0 st
+MiB Mem :   7962.0 total,   1230.1 free,   4572.2 used,   2159.7 buff/cache
+MiB Swap:   2048.0 total,   2048.0 free,      0.0 used.   2995.8 avail Mem
+(이하 프로세스 목록 생략...)
+```
+<br>
+
+##### 2. 
+```bash
+grep -i "Cpu(s)"
+```
+
+대소문자 구분 없이(-i) Cpu(s)라는 글자가 들어간 라인만 골라냄 
+
+결과
+```bash
+%Cpu(s):  5.0 us,  2.0 sy,  0.0 ni, 92.5 id,  0.5 wa,  0.0 hi,  0.0 si,  0.0 st
+%Cpu(s): 12.3 us,  4.1 sy,  0.0 ni, 83.2 id,  0.0 wa,  0.4 hi,  0.0 si,  0.0 st
+```
+<br>
+
+##### 3. 
+```bash
+tail -n 1
+```
+
+뒤에서부터 1줄만 가져옴 (가장 마지막 줄 선택)
+why? 리눅스의 top은 첫 번째 사이클에서 부팅 이후의 누적 평균값을 보여주기 때문에, 0.5초 간격을 두고 얻은 두 번째 출력 결과가 현재 실시간 데이터임 
+
+결과
+```bash
+%Cpu(s): 12.3 us,  4.1 sy,  0.0 ni, 83.2 id,  0.0 wa,  0.4 hi,  0.0 si,  0.0 st
+```
+<br>
+
+##### 4. 
+```bash
+awk -F',' '{ for(i=1;i<=NF;i++){ if($i ~ /id/){print $i} } }'
+```
+
+콤마(,)를 기준(-F',')으로 이 한 줄을 토막 낸 뒤, for를 돌면서 id (Idle, 유휴 상태)라는 글자가 포함된 토막만 찾아서 출력
+
+결과
+```bash
+83.2 id
+```
+<br>
+
+##### 5. 
+```bash
+grep -oP '[0-9.]+'
+```
+
+숫자와 소수점([0-9.])에 해당하는 것만 추출(-o). 문자는 버리고 숫자만 남김 
+
+결과
+```bash
+83.2
+```
+
+이렇게 얻은 숫자로 100 - 83.2 계산하여 최종 CPU 사용률 = 16.8% <br>
+<br>
+
+#### 6-2-2. MEM 사용률 추출 방식
+```bash
+MEM=$(free | awk '/Mem:/ {printf "%.1f", $3/$2 * 100}')
+```
+
+- free : 현재 시스템의 메모리 상태를 보여줌
+- awk를 사용하여 Mem:으로 시작하는 행을 찾은 뒤, 사용 중인 메모리($3) / 전체 메모리($2) * 100로 실시간 메모리 사용률을 백분율(%)로 계산
+<br>
+
+```bash
+total        used        free      shared  buff/cache   available
+Mem:        16323456     4871234     2103456      123456     9348766    11034567
+Swap:        2097148           0     2097148
+```
+에서 <br>
+$1 : Mem: (첫 번째 단어) <br>
+$2 : 16323456 (두 번째 단어 = total / 전체 메모리) <br>
+$3 : 4871234 (세 번째 단어 = used / 사용 중인 메모리) <br>
+<br>
+
+#### 6-2-3. DISK 사용률 추출 방식
+```bash
+DISK=$(df / | awk 'NR==2 {print $5}' | tr -d '%')
+```
+<br>
+
+##### 1. 
+```bash
+df /
+```
+
+- / : 루트 파티션. 최상위 뿌리
+- df : Disk Free. 디스크의 남은 공간을 확인하는 명령어. df / 는 루트 파티션의 정보만 보여달라고 하는 것
+
+실행 결과 예시
+```bash
+Filesystem     1K-blocks     Used Available Use% Mounted on
+/dev/sda1       41251136 18452104  20971488  47% /
+```
+<br>
+
+##### 2. 
+```bash
+awk 'NR==2 {print $5}'
+```
+
+- NR==2 : Number of Record. 2번째 줄을 선택해라
+- {print $5}: 공백을 기준으로 5번째 항목을 출력
+
+결과
+```bash
+47%
+```
+<br>
+
+##### 3. 
+```bash
+tr -d '%'
+```
+
+- tr : translate. 문자를 바꾸거나 지워줌
+- -d : delete
+
+결과
+```bash
+47
+```
+<br>
+
+#### 6-2-4. 로그 포맷 형태
+```bash
+echo "[${TIMESTAMP}] PID:${PID} CPU:${CPU}% MEM:${MEM}% DISK_USED:${DISK}%" >> "$LOG_FILE"
+```
+
+- 로그 포맷을 고정시켜서 정규식으로 특정 리소스의 숫자만 파싱하여, CPU_AVG나 CPU_MAX 같은 통계 리포를 생성할 수 있음 
+- 타임스탬프를 이용해서 sort나 grep으로 특정 날짜, 시간대의 장애 라인을 시간 순서대로 텍스트 정렬하고 추적하는 데 용이함
+<br>
 
 ### 6-3. 용량 기반 로그 관리를 어떤 방식으로 구현했는지?
 
