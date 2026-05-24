@@ -756,28 +756,60 @@ root@c80e2ad812e4:/# tail -f /var/log/agent-app/monitor.log
 ```
 <br>
 
-## 4. 도커 컨테이너 재시작 후 테스트 순서 
-### 4-1. UFW 활성화 + 포트 허용
+## 4. 도커 이미지 백업 및 환경 재구축
+### 4-1. 도커 이미지 내보내기 및 가져오기
+#### 4-1-1. 컨테이너를 이미지로 저장
+```bash
+docker commit agent-mission my-agent-env:1.0
+```
+<br>
+
+#### 4-1-2. Mac에서 이미지를 파일로 저장
+my-agent-env.tar 파일을 다른 컴퓨터로 전송한 후에 
+
+```bash
+docker save -o my-agent-env.tar my-agent-env:1.0
+```
+<br>
+
+#### 4-1-3. 다른 컴퓨터에서 파일 불러오기
+```bash
+docker load -i my-agent-env.tar
+```
+<br>
+
+#### 4-1-4. 저장한 이미지로 실행하기
+```bash
+docker run -it --privileged --name agent-mission-new my-agent-env:1.0 /bin/bash
+```
+<br>
+
+### 4-2. 도커 컨테이너 재시작 후 테스트 순서 
+#### 4-2-1. UFW 활성화 + 포트 허용
 ```bash
 ufw enable
 ufw allow 20022/tcp
 ufw allow 15034/tcp
 ```
+<br>
 
-### 4-2. SSH 서비스 시작
+#### 4-2-2. SSH 서비스 시작
 ```bash
 service ssh start
 ```
+<br>
 
-### 4-3. cron 서비스 시작
+#### 4-2-3. cron 서비스 시작
 ```bash
 service cron start
 ```
+<br>
 
-### 4-4. 앱 실행 (agent-admin으로)
+#### 4-2-4. 앱 실행 (agent-admin으로)
 ```bash
 su - agent-admin -c "/usr/local/bin/agent-app &"
 ```
+<br>
 
 ## 5. 개념 알아가기
 ### 5-1. SSH 포트 변경과 Root 원격 접속 차단의 필요성
